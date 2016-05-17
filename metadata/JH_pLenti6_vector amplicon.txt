@@ -1,0 +1,4 @@
+> [JH_pLenti6_vector amplicon.xdna] [DEFINITION]: [LOCUS]: pLenti6.2blastPM - 158 bp
+ATCGTTTCAGACCCACCTCCcaaccccgaggggacccgacaggcccgaaggaatagaagaagaaggtggagagagagaca
+gagacagatccattcgattagtgaacggatctcgacggtatcgatataaCTGCAGACGCGTaccggttagtaatgacg
+
