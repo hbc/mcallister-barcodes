@@ -1,0 +1,124 @@
+---
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    highlight: zenburn
+    theme: flatly
+---
+
+```{r read-data}
+library(readr)
+bc = read_delim("r1.barcodes", delim=" ")
+```
+
+```{r barcode-group}
+library(dplyr)
+grouped = bc %>% group_by(barcode, index) %>% summarise(count=n())
+```
+
+# Summary stats
+There are `r nrow(grouped)` unique barcode-index pairs and of those
+`r nrow(subset(grouped, count > 10))` are seen more than 10 times.
+
+We can see below that there is are a small set of barcode-index
+pairs that are represented a high number of times.
+
+```{r barcode-index-plot}
+library(ggplot2)
+ggplot(grouped, aes(count)) + geom_histogram() + theme_bw() +
+  scale_x_log10() + scale_y_sqrt()
+```
+
+# Known barcodes
+Now we'll mark up the barcode-index pair with whether or not these
+are some of the known sequences. The indexes we found correspond to the
+reverse complement column in the index file and the barcodes correspond
+to the sense column in the barcode file.
+
+```{r read-known-data}
+kbc = read_csv("metadata/BC sequences.csv")
+kin = read_csv("metadata/indexseqs.csv")
+grouped$kin = grouped$index %in% kin$rc
+grouped$kbc = grouped$barcode %in% kbc$sense
+grouped$known = grouped$kin & grouped$kbc
+grouped$known = ifelse(grouped$known, "known", "unknown")
+known = subset(grouped, known == "known")
+```
+
+Now we can see if we mark up the barcode-index pairs with whether or not
+they are from the known barcode and known index files, we find that
+there are only `r nrow(known)` barcode-index pairs.
+
+If we plot the histograms separating out whether they are a known or unknown
+barcode-index pair, we can see that the known barcode-index pairs
+have many more reads associated with them than the unknown barcode-index
+pairs.
+
+```{r known-plot}
+library(ggplot2)
+ggplot(grouped, aes(count)) + geom_histogram() + theme_bw() +
+  facet_wrap(~known) +
+  scale_x_log10() + scale_y_sqrt() +
+  ylab("number of barcode-index pairs")
+```
+
+# Barcodes per index
+We're expecting 2 to 3 barcodes per index, but we generally see more than that
+if we're seeing `r nrow(known)` barcodes. How many per barcode?
+
+```{r barcodes-per-index-plot}
+barcode_per_index = known %>% group_by(index) %>% summarise(nbarcodes = n())
+index_per_barcode = known %>% group_by(barcode) %>% summarise(nindex = n())
+ggplot(barcode_per_index, aes(index, nbarcodes)) +
+  geom_bar(stat='identity') +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  xlab("")
+ggplot(index_per_barcode, aes(barcode, nindex)) + geom_bar(stat='identity') +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  xlab("")
+```
+
+# Overrepresented barcodes
+
+We see every index with every barcode at least once. Are some overrepresented?
+
+```{r overrpresented}
+ggplot(known, aes(barcode, count)) + facet_wrap(~index) + geom_bar(stat='identity') +
+  scale_y_sqrt() +
+  theme_bw() +
+  theme(axis.ticks = element_blank(), axis.text.x = element_blank())
+```
+
+For some indexes it looks like yes, and for others no.
+
+# Filtering for barcode pairs
+Here I filtered by keeping only the barcodes for each index which were at
+least twice as prevalent as the average of the barcodes for that index. Then
+I filtered out all indexes that had more than 3 barcodes that passed that
+filter.
+
+```{r filtering}
+filtered = known %>% group_by(index) %>%
+  mutate(mcount = mean(count)) %>%
+  filter(count > 2*mcount) %>% group_by(index) %>%
+  mutate(nfiltered = n()) %>%
+  filter(nfiltered < 4)
+```
+
+That leaves us with these:
+
+```{r filter-plot}
+ggplot(filtered, aes(barcode, count)) + facet_wrap(~index) +
+  geom_bar(stat='identity') + scale_y_sqrt() +
+  theme_bw() +
+  theme(axis.ticks = element_blank(), axis.text.x = element_blank())
+output = filtered %>% select(barcode, index, count)
+write.table(output, file="barcode-index.csv", col.names=TRUE,
+            sep=",", quote=FALSE, row.names=FALSE)
+```
+
+Which I wrote out to a table [here](barcode-index.csv).
