@@ -121,12 +121,6 @@ ggplot(filtered, aes(barcode, count)) + facet_wrap(~index) +
 # Expected indexes
 ```{r expected-indexes}
 expected = read_csv("metadata/expected-pairs.csv")
-all_expected = setdiff(expected$barcode, c("ALL"))
-all_index = subset(expected, barcode == "ALL")$index
-expected = rbind(expected, data.frame(barcode=all_expected, index=all_index[1]))
-expected = rbind(expected, data.frame(barcode=all_expected, index=all_index[2]))
-expected = rbind(expected, data.frame(barcode=all_expected, index=all_index[3]))
-expected = subset(expected, barcode != "ALL")
 colnames(expected) = c("ebarcode", "eindex")
 expected$pair = paste(expected$ebarcode, expected$eindex, sep=":")
 filtered$pair = paste(filtered$barcode, filtered$index, sep=":")
@@ -155,6 +149,17 @@ ggplot(known, aes(barcode, count, fill=expected)) +
   theme(axis.ticks = element_blank(), axis.text.x = element_blank())
 ```
 
+# 33 barcode mixes
+```{r 33-barcode-alone}
+index_mixes = c("ATAACGGT", "TCAGCATT", "TGTGACTA")
+ggplot(subset(known, index %in% index_mixes),
+       aes(barcode, count, fill=expected)) +
+  facet_wrap(~index) + geom_bar(stat='identity') +
+  scale_y_sqrt() +
+  theme_bw() +
+  theme(axis.ticks = element_blank(), axis.text.x = element_blank())
+```
+
 # Output tables
 ```{r output-tables}
 output = filtered %>% select(barcode, index, count, expected)
@@ -167,3 +172,8 @@ write.table(output, file="unfiltered-barcode-index.csv", col.names=TRUE,
 [filtered-barcode-index.csv](filtered-barcode-index.csv)
 
 [unfiltered-barcode-index.csv](unfiltered-barcode-index.csv)
+
+I included an example of a CSV file of the expected pairs that is much easier
+to work with:
+
+[expected-pairs.csv](../metadata/expected-pairs.csv)
