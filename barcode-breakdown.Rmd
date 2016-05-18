@@ -115,9 +115,55 @@ ggplot(filtered, aes(barcode, count)) + facet_wrap(~index) +
   geom_bar(stat='identity') + scale_y_sqrt() +
   theme_bw() +
   theme(axis.ticks = element_blank(), axis.text.x = element_blank())
+```
+
+
+# Expected indexes
+```{r expected-indexes}
+expected = read_csv("metadata/expected-pairs.csv")
+all_expected = setdiff(expected$barcode, c("ALL"))
+all_index = subset(expected, barcode == "ALL")$index
+expected = rbind(expected, data.frame(barcode=all_expected, index=all_index[1]))
+expected = rbind(expected, data.frame(barcode=all_expected, index=all_index[2]))
+expected = rbind(expected, data.frame(barcode=all_expected, index=all_index[3]))
+expected = subset(expected, barcode != "ALL")
+colnames(expected) = c("ebarcode", "eindex")
+expected$pair = paste(expected$ebarcode, expected$eindex, sep=":")
+filtered$pair = paste(filtered$barcode, filtered$index, sep=":")
+filtered$expected = filtered$pair %in% expected$pair
+```
+
+```{r filter-plot-expected}
+ggplot(filtered, aes(barcode, count, fill=expected)) + facet_wrap(~index) +
+  geom_bar(stat='identity') + scale_y_sqrt() +
+  theme_bw() +
+  theme(axis.ticks = element_blank(), axis.text.x = element_blank())
 output = filtered %>% select(barcode, index, count)
 write.table(output, file="barcode-index.csv", col.names=TRUE,
             sep=",", quote=FALSE, row.names=FALSE)
 ```
 
-Which I wrote out to a table [here](barcode-index.csv).
+# Expected on unfiltered list
+
+```{r known-plot-expected}
+known$pair = paste(known$barcode, known$index, sep=":")
+known$expected = known$pair %in% expected$pair
+ggplot(known, aes(barcode, count, fill=expected)) +
+  facet_wrap(~index) + geom_bar(stat='identity') +
+  scale_y_sqrt() +
+  theme_bw() +
+  theme(axis.ticks = element_blank(), axis.text.x = element_blank())
+```
+
+# Output tables
+```{r output-tables}
+output = filtered %>% select(barcode, index, count, expected)
+write.table(output, file="filtered-barcode-index.csv", col.names=TRUE,
+            sep=",", quote=FALSE, row.names=FALSE)
+output = known %>% select(barcode, index, count, expected)
+write.table(output, file="unfiltered-barcode-index.csv", col.names=TRUE,
+            sep=",", quote=FALSE, row.names=FALSE)
+```
+[filtered-barcode-index.csv](filtered-barcode-index.csv)
+
+[unfiltered-barcode-index.csv](unfiltered-barcode-index.csv)
