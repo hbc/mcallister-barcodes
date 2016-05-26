@@ -9,12 +9,13 @@ output:
 
 ```{r read-data}
 library(readr)
-bc = read_delim("r1.barcodes", delim=" ")
+bc = read_delim("r1.withq.barcodes", delim=" ")
 ```
 
 ```{r barcode-group}
 library(dplyr)
-grouped = bc %>% group_by(barcode, index) %>% summarise(count=n())
+grouped = bc %>% group_by(barcode, index) %>% summarise(count=n(), bcq=mean(barcodeq),
+                                                        iq=mean(indexq))
 ```
 
 # Summary stats
@@ -63,6 +64,16 @@ ggplot(grouped, aes(count)) + geom_histogram() + theme_bw() +
   ylab("number of barcode-index pairs")
 ```
 
+We can see that the PHRED quality of the known barcode-index pairs has a tight
+distribution:
+
+```{r known-quality-plot}
+ggplot(grouped, aes(bcq, iq)) + geom_point() + theme_bw() +
+  facet_wrap(~known) +
+  ylab("mean PHRED quality of index") +
+  xlab("mean PHREAD quality of barcode")
+```
+
 # Barcodes per index
 We're expecting 2 to 3 barcodes per index, but we generally see more than that
 if we're seeing `r nrow(known)` barcodes. How many per barcode?
@@ -93,6 +104,27 @@ ggplot(known, aes(barcode, count)) + facet_wrap(~index) + geom_bar(stat='identit
 ```
 
 For some indexes it looks like yes, and for others no.
+
+# Overepresented barcodes colored by quality
+```{r filtered-overrepresented}
+ggplot(known, aes(barcode, count, fill=iq)) + facet_wrap(~index) +
+  geom_bar(stat='identity') +
+  scale_y_sqrt() +
+  theme_bw() +
+  theme(axis.ticks = element_blank(), axis.text.x = element_blank()) +
+  guides(fill=guide_legend(title="Index quality"))
+
+ggplot(known, aes(barcode, count, fill=bcq)) + facet_wrap(~index) +
+  geom_bar(stat='identity') +
+  scale_y_sqrt() +
+  theme_bw() +
+  theme(axis.ticks = element_blank(), axis.text.x = element_blank()) +
+  guides(fill=guide_legend(title="Barcode quality"))
+
+ggplot(known, aes(iq, bcq)) + facet_wrap(~index) +
+  geom_point() + xlab("index quality") +
+  ylab("barcode quality") + theme_bw()
+```
 
 # Filtering for barcode pairs
 Here I filtered by keeping only the barcodes for each index which were at
@@ -159,6 +191,26 @@ ggplot(subset(known, index %in% index_mixes),
   theme_bw() +
   theme(axis.ticks = element_blank(), axis.text.x = element_blank())
 ```
+
+Coloring by barcode and index quality:
+
+```{r 33-barcode-alone-byquality}
+ggplot(subset(known, index %in% index_mixes),
+       aes(barcode, count, color=iq)) +
+  facet_wrap(~index+expected) + geom_point() +
+  scale_y_sqrt() +
+  theme_bw() +
+  theme(axis.ticks = element_blank(), axis.text.x = element_blank())
+ggplot(subset(known, index %in% index_mixes),
+       aes(barcode, count, color=bcq)) +
+  facet_wrap(~index+expected) + geom_point() +
+  scale_y_sqrt() +
+  theme_bw() +
+  theme(axis.ticks = element_blank(), axis.text.x = element_blank())
+```
+
+Filtering out by barcode quality might help with some but doesn't weed out all
+of the false positives.
 
 # Output tables
 ```{r output-tables}
