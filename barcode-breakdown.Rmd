@@ -47,6 +47,17 @@ grouped$known = ifelse(grouped$known, "known", "unknown")
 known = subset(grouped, known == "known")
 ```
 
+I wrote out the barcode-index pairs with counts, the mean of the barcode quality (bcq),
+the mean of the index quality (iq), whether or not the index is a known
+index (kin), whether or not the barcode is a known barcode (kin), and
+whether or not the barcode-index pair is expected (known).
+
+This table is here [All barcode index](all-barcode-index-unfiltered.csv)
+
+```{r barcode-out}
+write.table(grouped, file="all-barcode-index-unfiltered.csv", col.names=TRUE, row.names=FALSE, quote=FALSE, sep=",")
+```
+
 Now we can see if we mark up the barcode-index pairs with whether or not
 they are from the known barcode and known index files, we find that
 there are only `r nrow(known)` barcode-index pairs.

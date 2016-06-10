@@ -334,6 +334,9 @@ grouped$kbc =<span class="st"> </span>grouped$barcode %in%<span class="st"> </sp
 grouped$known =<span class="st"> </span>grouped$kin &amp;<span class="st"> </span>grouped$kbc
 grouped$known =<span class="st"> </span><span class="kw">ifelse</span>(grouped$known, <span class="st">&quot;known&quot;</span>, <span class="st">&quot;unknown&quot;</span>)
 known =<span class="st"> </span><span class="kw">subset</span>(grouped, known ==<span class="st"> &quot;known&quot;</span>)</code></pre>
+<p>I wrote out the barcode-index pairs with counts, the mean of the barcode quality (bcq), the mean of the index quality (iq), whether or not the index is a known index (kin), whether or not the barcode is a known barcode (kin), and whether or not the barcode-index pair is expected (known).</p>
+<p>This table is here <a href="all-barcode-index-unfiltered.csv">All barcode index</a></p>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">write.table</span>(grouped, <span class="dt">file=</span><span class="st">&quot;all-barcode-index-unfiltered.csv&quot;</span>, <span class="dt">col.names=</span><span class="ot">TRUE</span>, <span class="dt">row.names=</span><span class="ot">FALSE</span>, <span class="dt">quote=</span><span class="ot">FALSE</span>, <span class="dt">sep=</span><span class="st">&quot;,&quot;</span>)</code></pre>
 <p>Now we can see if we mark up the barcode-index pairs with whether or not they are from the known barcode and known index files, we find that there are only 940 barcode-index pairs.</p>
 <p>If we plot the histograms separating out whether they are a known or unknown barcode-index pair, we can see that the known barcode-index pairs have many more reads associated with them than the unknown barcode-index pairs.</p>
 <pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(ggplot2)
