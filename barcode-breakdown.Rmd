@@ -282,3 +282,9 @@ I included an example of a CSV file of the expected pairs that is much easier
 to work with:
 
 [expected-pairs.csv](../metadata/expected-pairs.csv)
+
+# Raw barcode-index counts
+
+This file has this format: the mean of the barcode quality (bcq), the mean of the index quality (iq), whether or not the index is a known index (kin), whether or not the barcode is a known barcode (kbc), whether or not both the barcode and index pair were known (known) and whether or nor the index-barcode pair was expected (expected). Along with the sequence of the barcode (barcode), the sequence of the index (index) and the number of reads that had that barcode-index pair (count).
+
+[All barcode index](all-barcode-index-unfiltered.csv)
