@@ -224,7 +224,7 @@ indicating whether the barcode was known 'kbc' the index was known 'kin',
 both were known 'known' and if the barcode-index pair is expected 'expected'.
 The count column is the total number of times we saw this barcode-index pairing.
 
-[Barcode-index pairings (unfiltered)](all-barcode-index-unfilitered.csv)
+[Barcode-index pairings (unfiltered)](all-barcode-index-unfiltered.csv)
 
 # Summary
 Something is up, we are seeing barcodes in all kinds of samples we are not
