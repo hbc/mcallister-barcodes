@@ -1,0 +1,273 @@
+---
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    highlight: zenburn
+    theme: flatly
+---
+
+```{r read-data}
+library(readr)
+bc = read_delim("GEN00067700-barcodes.txt", delim=" ", progress=FALSE)
+```
+
+```{r barcode-group}
+library(dplyr)
+grouped = bc %>%
+  group_by(barcode, index) %>%
+  summarise(count=n(), bcq=mean(barcodeq), iq=mean(indexq))
+```
+
+# Summary stats
+There are `r nrow(grouped)` unique barcode-index pairs and of those
+`r nrow(subset(grouped, count > 10))` are seen more than 10 times.
+
+We can see below that there is are a small set of barcode-index
+pairs that are represented a high number of times.
+
+```{r barcode-index-plot}
+library(ggplot2)
+ggplot(grouped, aes(count)) + geom_histogram() + theme_bw() +
+  scale_x_log10() + scale_y_sqrt()
+```
+
+# Known barcodes
+Now we'll mark up the barcode-index pair with whether or not these
+are some of the known sequences. The indexes we found correspond to the
+reverse complement column in the index file and the barcodes correspond
+to the sense column in the barcode file.
+
+```{r read-known-data}
+kbc = read_csv("../metadata/barcode.csv")
+kin = read_csv("../metadata/index.csv")
+grouped$kin = grouped$index %in% kin$rc
+grouped$kbc = grouped$barcode %in% kbc$anti_sense
+grouped$known = grouped$kin & grouped$kbc
+grouped$known = ifelse(grouped$known, "known", "unknown")
+```
+
+Here we do a bunch of transformations to get the expected index-barcode
+pairs in a useful format. We take all the expected barcode matchings for
+each experiment and each pool separately, and then determine which indexes
+should have which barcodes. Then we combine them all together at the end.
+
+
+```{r expected-barcode-index-pairs}
+expected = read_csv("../metadata/GEN00067700-indexpairs.csv", progress=FALSE)
+mcneu = read_tsv("../metadata/McNeu.tsv", progress=FALSE) %>%
+  mutate(pool="McNeu Pool") %>%
+  left_join(expected, by=c("pool"="bcid")) %>%
+  select(-pool)
+hmler = read_tsv("../metadata/HMLER.tsv") %>%
+  mutate(pool="HMLER Pool") %>%
+  left_join(expected, by=c("pool"="bcid")) %>%
+  select(-pool)
+poola = read_tsv("../metadata/PoolA.csv") %>%
+  mutate(pool="Pool A") %>%
+  left_join(expected, by=c("pool"="bcid")) %>%
+  select(-pool)
+expected = subset(expected, !bcid %in% c("McNeu Pool", "HMLER Pool", "Pool A"))
+expected$bcid = as.integer(expected$bcid)
+expected = expected %>% bind_rows(mcneu, hmler, poola) %>%
+  left_join(kbc, by=c("bcid"="id")) %>%
+  select(anti_sense.y, anti_sense.x)
+colnames(expected) = c("ebarcode", "eindex")
+expected$pair = paste(expected$ebarcode, expected$eindex, sep=":")
+write_csv(expected, "expected-reformat.csv")
+```
+
+That was a bunch of joining and merging, so let's make sure we did it correctly.
+We're expecting 10 indexes to have 2 barcodes each, 3 indexes to have 30
+barcodes (HMLER Pool), 6 indexes to have 33 barcodes (McNeu pool) and 1 index to
+have 6 barcodes (Pool A). That is a total of `r (10 * 2) + (3 * 30) + (6 * 33) +
+(1 * 6)` barcode index pairs. There are `r nrow(expected)` rows in the expected
+barcode data frame, once we are done with all the merging, so it looks like we
+did the merging correctly.
+
+```{r  barcodes-index-pairing}
+grouped$pair = paste(grouped$barcode, grouped$index, sep=":")
+grouped$expected = grouped$pair %in% expected$pair
+known = subset(grouped, known == "known")
+```
+
+We only only see `r sum(grouped$expected)` of the `r nrow(expected)` expected
+barcode-index pairs in this dataset. Some indexes are missing expected
+barcodes:
+
+```{r missing-barcodes-by-index}
+missing_pairs = expected %>%
+  mutate(present=pair %in% grouped$pair) %>%
+  group_by(eindex, present) %>% summarise(count=n())
+ggplot(missing_pairs, aes(eindex, count, color=present)) +
+  geom_point() +
+  xlab("") +
+  theme(axis.text.x  = element_text(angle=90))
+```
+
+`ACGGTATA` looks like it is a failed library. There are only
+`r sum(subset(grouped, index == "ACGGTATA")$count)` total reads matching
+this index in the library.
+
+I wrote out the barcode-index pairs with counts, the mean of the barcode quality (bcq),
+the mean of the index quality (iq), whether or not the index is a known
+index (kin), whether or not the barcode is a known barcode (kin), and
+whether or not the barcode-index pair is expected (known).
+
+This table is here [All barcode index](all-barcode-index-unfiltered.csv)
+
+```{r barcode-out}
+write.table(grouped, file="all-barcode-index-unfiltered.csv", col.names=TRUE, row.names=FALSE, quote=FALSE, sep=",")
+```
+
+Now we can see if we mark up the barcode-index pairs with whether or not
+they are from the known barcode and known index files, we find that
+there are `r nrow(known)` barcode-index pairs and `r nrow(subset(known, expected))`
+expected barcode-index pairs.
+
+If we plot the histograms separating out whether they are a known or unknown
+barcode-index pair, we can see that the known barcode-index pairs
+have many more reads associated with them than the unknown barcode-index
+pairs.
+
+```{r known-plot}
+library(ggplot2)
+ggplot(grouped, aes(count)) + geom_histogram() + theme_bw() +
+  facet_wrap(~known) +
+  scale_x_log10() + scale_y_sqrt() +
+  ylab("number of barcode-index pairs")
+```
+
+We can see that the PHRED quality of the known barcode-index pairs has a tight
+distribution:
+
+```{r known-quality-plot}
+ggplot(grouped, aes(bcq, iq)) + geom_point() + theme_bw() +
+  facet_wrap(~known) +
+  ylab("mean PHRED quality of index") +
+  xlab("mean PHRED quality of barcode")
+```
+
+Here you can see that if we filter for only known barcodes and indexes, they
+    tend to have both a high index and barcode quality compared to unknown
+    sequences.
+
+```{r known-bc-quality-plot}
+ggplot(grouped, aes(bcq, iq, color=known)) + geom_point(size=0.5) + theme_bw() +
+  facet_wrap(~kin+kbc) +
+  ylab("mean PHRED quality of index") +
+  xlab("mean PHRED quality of barcode")
+```
+
+If we look at the expected barcode-index pairings, we can see that there is not
+much of a difference in the distribution of quality of the barcode-index pairs
+for the pairs we expect (TRUE) and the pairs we do not expect (FALSE). Filtering
+on quality will not help these results.
+
+```{r expected-bc-quality}
+ggplot(subset(grouped, known == "known"), aes(bcq, iq)) +
+  geom_point(size=0.5) + theme_bw() +
+  facet_wrap(~expected) +
+  ylab("mean PHRED quality of index") +
+  xlab("mean PHRED quality of barcode")
+```
+
+We can see that the barcode-index pairs have about an order of magnitude less
+counts when they are not expected than when they are expected.
+
+```{r expected-counts}
+ggplot(subset(grouped, known == "known"), aes(count)) +
+  geom_histogram() + theme_bw() +
+  facet_wrap(~expected) +
+  scale_x_log10()
+```
+
+# Barcodes per index
+We generally see more barcodes than we are expecting per index.
+
+```{r barcodes-per-index-plot}
+expected_counts = expected %>% group_by(eindex) %>% summarise(nexpected=n())
+barcode_per_index = known %>% group_by(index) %>% summarise(nbarcodes = n()) %>%
+  left_join(expected_counts, by=c("index"="eindex")) %>%
+  tidyr::gather("type", "count", 2:3)
+index_per_barcode = known %>% group_by(barcode) %>% summarise(nindex = n())
+ggplot(barcode_per_index, aes(index, count, fill=type)) +
+  geom_bar(stat='identity', position='dodge') +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  xlab("")
+```
+
+# Barcodes counts for each index
+
+We see every index with every barcode at least once. Here we color
+the plots by if they are the pair we expected or not.
+
+```{r overrpresented}
+ggplot(known, aes(barcode, count, fill=expected)) +
+  facet_wrap(~index) + geom_bar(stat='identity') +
+  scale_y_sqrt() +
+  theme_bw() +
+  theme(axis.ticks = element_blank(), axis.text.x = element_blank())
+```
+
+These aren't lining up at all with what we were expecting, it looks a lot worse
+than the previous library. Let's pick one of the indexes that are supposed
+to have just two barcodes "AATAGGAT" (top left) to look at more in depth.
+
+```{r AATAGGAT-in-depth}
+AATAGGAT = grouped %>%
+  filter(index == "AATAGGAT")
+AATAGGAT_known = subset(AATAGGAT, known == "known") %>% arrange(desc(count))
+AATAGGAT_unknown = subset(AATAGGAT, known == "unknown")
+```
+
+There are `r nrow(AATAGGAT)` barcodes identified for AATAGGAT. Of those,
+`r nrow(AATAGGAT_known)` have both a known barcode and a known index.
+`r nrow(AATAGGAT_unknown)` do not have a known barcode and a known index.
+For the known barcode-index pairs, there are `r sum(AATAGGAT_known$count)`
+and for the uknown pairs there are `r sum(AATAGGAT_unknown$count)`, so despite
+there being only a small number of entries where both the barcode and index
+are known, they have the majority of the counts, which is what we expect.
+
+Looking at the top of the table, we can see the two barcodes that are the
+highest are not the barcodes we were expecting. We are expecting
+barcodes 64 and 68 but the top two are barcodes 54 and 44.
+
+```{r AATAGGAT-table, results='asis'}
+knitr::kable(head(AATAGGAT_known))
+```
+
+I checked to see if we are making a mistake somewhere in this script by checking
+in the unprocessed sequences by grepping for the barcode and the index in the
+same read. This isn't perfect since it doesn't match the anchor sequences and
+doesn't restrict the position the sequences are in, but gives a quick and dirty
+estimate to make sure we didn't make a mistake anywhere:
+
+```
+TCATAATCTCAACAATCTTTCTTT (expected): 4006
+CTTTTTCAATCACTTTCAATTCAT (top hit): 72315
+```
+
+# Output tables
+
+The first table has the expected barcode-index pairings, reformatted to
+be easy to use in the script.
+
+[Expected barcode-index pairs file (reformatted)](expected-reformat.csv)
+
+This table is all of the identified barcode-index pairs from the sequence
+data (everything that matched the regex). It is unfiltered, and has columns
+indicating whether the barcode was known 'kbc' the index was known 'kin',
+both were known 'known' and if the barcode-index pair is expected 'expected'.
+The count column is the total number of times we saw this barcode-index pairing.
+
+[Barcode-index pairings (unfiltered)](all-barcode-index-unfilitered.csv)
+
+# Summary
+Something is up, we are seeing barcodes in all kinds of samples we are not
+expecting. This isn't simple crosstalk, because if that was the case we would
+see a low level of cross contamination but still see the main barcode signals
+popping out like we did in the first set of samples. It is entirely possible
+that I have screwed something up, but if I am, I can't figure out where it
+is happening.
